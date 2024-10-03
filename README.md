@@ -1,11 +1,11 @@
 # ABAP-Parallel-Processing
 Parallel processing aid tool for ABAP. Imeplemented as a simple and fast way to create parallel processing implementations for large datasets, without having to take care of much of the boilerplate and cumberosme parts of this task. 
 
-The concept is as simple as
+The concept is as simple creating a processor class which implements aWORK method to process each work packet, and define intput and optionally output formats. After this to process our work in parallel we just call the PROCESS method.
 
 Mandatory development for the parallel proessor part
 1) Create a subclass of Abstract processor ZCL_CAUT_PARALLEL_PROCESSOR
-2) Implement mandatory abstract methods 
+2) Implement abstract methods 
   a)WORK: what you want to do with each data package
   b)GET_INPUT_TYPE: return a data reference to A TABLE type with the format you expect data packages in the WORK method
 Optionally:
