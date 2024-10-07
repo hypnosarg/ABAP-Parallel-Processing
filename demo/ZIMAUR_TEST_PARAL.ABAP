@@ -25,8 +25,8 @@ INITIALIZATION.
 
   DATA(lo_result) = lo_paral->process(
     EXPORTING
-      iv_servergroup = 'AB_PARALLEL_PROC'
-      iv_pckg_size   = 100
+      iv_servergroup   = 'AB_PARALLEL_PROC'
+      iv_resource_perc = 80      "Limit to 80% of available resources
     CHANGING
       ct_data        = <lt_input>
 
@@ -34,7 +34,7 @@ INITIALIZATION.
 
 
 
- FIELD-SYMBOLS: <lt_out> TYPE STANDARD TABLE.
- ASSIGN lo_result->* TO <lt_out>.
+  FIELD-SYMBOLS: <lt_out> TYPE STANDARD TABLE.
+  ASSIGN lo_result->* TO <lt_out>.
 
- BREAK-POINT.
+  BREAK-POINT.
