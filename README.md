@@ -1,5 +1,6 @@
 # ABAP-Parallel-Processing
 Parallel processing aid tool for ABAP. Imeplemented as a simple and fast way to create parallel processing implementations for large datasets, without having to take care of much of the boilerplate and cumberosme parts of this task. 
+This is refinement layer on on the standard SPTA framework
 
 The concept is as simple creating a processor class which implements aWORK method to process each work packet, and define intput and optionally output formats. After this to process our work in parallel we just call the PROCESS method.
 
