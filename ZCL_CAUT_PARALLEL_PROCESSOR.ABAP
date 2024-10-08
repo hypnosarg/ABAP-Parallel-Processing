@@ -85,47 +85,60 @@ CLASS ZCL_CAUT_PARALLEL_PROCESSOR IMPLEMENTATION.
 * | [--->] IV_MAX_TASKS                   TYPE        NUMC2
 * | [<-()] RV_COUNT                       TYPE        SY-INDEX
 * +--------------------------------------------------------------------------------------</SIGNATURE>
-  method DETERMINE_TASK_COUNT.
-      DATA:  lv_free type i.
+  METHOD determine_task_count.
+    DATA:  lv_free TYPE i.
 
 
-      rv_count = 0.
+    rv_count = 0.
 
-      CALL FUNCTION 'SPBT_INITIALIZE'
-        EXPORTING
-          group_name                     = CONV rzlli_apcl( iv_servergroup )
+    CALL FUNCTION 'SPBT_INITIALIZE'
+      EXPORTING
+        group_name                     = CONV rzlli_apcl( iv_servergroup )
+      IMPORTING
+        free_pbt_wps                   = lv_free
+      EXCEPTIONS
+        invalid_group_name             = 1
+        internal_error                 = 2
+        pbt_env_already_initialized    = 3
+        currently_no_resources_avail   = 4
+        no_pbt_resources_found         = 5
+        cant_init_different_pbt_groups = 6
+        OTHERS                         = 7.
+
+    IF sy-subrc  = 3.
+      "Environment already initialized, use a different FM
+      "to get available resources
+      CALL FUNCTION 'SPBT_GET_CURR_RESOURCE_INFO'
         IMPORTING
-          free_pbt_wps                   = lv_free
+          free_pbt_wps                = lv_free
         EXCEPTIONS
-          invalid_group_name             = 1
-          internal_error                 = 2
-          pbt_env_already_initialized    = 3
-          currently_no_resources_avail   = 4
-          no_pbt_resources_found         = 5
-          cant_init_different_pbt_groups = 6
-          OTHERS                         = 7.
-
+          internal_error              = 1
+          pbt_env_not_initialized_yet = 2
+          OTHERS                      = 3.
       IF sy-subrc <> 0.
         RETURN.
       ENDIF.
+    ELSEIF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
 
-      IF iv_resource_perc <> 0.
-        rv_count = ( iv_resource_perc * lv_free ) / 100.
-      ELSE.
-        "Take them all!!
-        rv_count = lv_free.
-      ENDIF.
+    IF iv_resource_perc <> 0.
+      rv_count = ( iv_resource_perc * lv_free ) / 100.
+    ELSE.
+      "Take them all!!
+      rv_count = lv_free.
+    ENDIF.
 
-      "Did we receive a certain external limit con task count?
-      "Then adjust the calculation by it at lower common denominator
-      IF iv_max_tasks <> 0 AND iv_max_tasks < rv_count.
-        rv_count = iv_max_tasks.
-      ENDIF.
-
-
+    "Did we receive a certain external limit con task count?
+    "Then adjust the calculation by it at lower common denominator
+    IF iv_max_tasks <> 0 AND iv_max_tasks < rv_count.
+      rv_count = iv_max_tasks.
+    ENDIF.
 
 
-  endmethod.
+
+
+  ENDMETHOD.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
