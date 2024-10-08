@@ -228,7 +228,7 @@ CLASS ZCL_CAUT_PARALLEL_PROCESSOR IMPLEMENTATION.
       ls_param-pckg_size = lines( ct_data ) /  lv_maxtasks.
     ELSE.
       "No available resources? throw an error
-      RETURN.
+      zcx_caut_parallel_processor=>raise_no_resources( iv_servergroup ).
     ENDIF.
 
 
@@ -254,8 +254,7 @@ CLASS ZCL_CAUT_PARALLEL_PROCESSOR IMPLEMENTATION.
         no_resources_available   = 2
         OTHERS                   = 3.
     IF sy-subrc <> 0.
-      MESSAGE TEXT-e11 TYPE 'S' DISPLAY LIKE 'E'.
-      RETURN.
+      zcx_caut_parallel_processor=>raise_no_resources( iv_servergroup ).
     ENDIF.
 
     ro_result =  me->unpack_data(
