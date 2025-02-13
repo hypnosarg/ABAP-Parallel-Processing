@@ -18,9 +18,11 @@ FORM f_before_rfc USING    is_before_rfc_imp     TYPE spta_t_before_rfc_imp
 
 
   FIELD-SYMBOLS: <lt_data>   TYPE STANDARD TABLE,
-                 <lt_packet> TYPE STANDARD TABLE.
+                 <lt_packet> TYPE STANDARD TABLE,
+                 <lt_params> TYPE STANDARD TABLE.
   DATA: lo_packet    TYPE REF TO data,
         lo_data      TYPE REF TO data,
+        lo_params    TYPE REF TO data,
         lo_processor TYPE REF TO object.
 
   cs_before_rfc_exp-start_rfc = abap_false.
@@ -32,6 +34,7 @@ FORM f_before_rfc USING    is_before_rfc_imp     TYPE spta_t_before_rfc_imp
   CALL METHOD lo_processor->('UNPACK_DATA')
     EXPORTING
       it_packed = cs_data-input
+      iv_output = zcl_caut_parallel_processor=>gc_input
     RECEIVING
       ro_data   = lo_data.
 
@@ -39,6 +42,13 @@ FORM f_before_rfc USING    is_before_rfc_imp     TYPE spta_t_before_rfc_imp
   CLEAR cs_data-input.
   CHECK <lt_data> IS NOT INITIAL.
 
+  CALL METHOD lo_processor->('UNPACK_DATA')
+    EXPORTING
+      it_packed = cs_data-parameters
+      iv_output = zcl_caut_parallel_processor=>gc_params
+    RECEIVING
+      ro_data   = lo_params.
+  ASSIGN lo_params->* TO <lt_params>.
 
   "Create work packages
   CREATE DATA lo_packet LIKE <lt_data>.
@@ -51,12 +61,24 @@ FORM f_before_rfc USING    is_before_rfc_imp     TYPE spta_t_before_rfc_imp
 
 
   "Double packing to add the class name
-  DATA  lt_packet_encoded TYPE zcl_caut_parallel_processor=>gty_t_data.
+  DATA: lt_packet_encoded TYPE zcl_caut_parallel_processor=>gty_t_data,
+        lt_params_encoded TYPE zcl_caut_parallel_processor=>gty_t_data.
+
   CALL METHOD lo_processor->('PACK_DATA')
     EXPORTING
       it_data   = <lt_packet>
     RECEIVING
       rt_packed = lt_packet_encoded.
+
+  "Always add the parameters
+  CALL METHOD lo_processor->('PACK_DATA')
+    EXPORTING
+      it_data                = <lt_params>
+      iv_data_are_parameters = abap_true
+    RECEIVING
+      rt_packed              = lt_params_encoded.
+
+  APPEND LINES OF lt_params_encoded TO lt_packet_encoded.
 
   CALL FUNCTION 'SPTA_INDX_PACKAGE_ENCODE'
     EXPORTING
@@ -84,13 +106,15 @@ FORM f_in_rfc   USING    is_in_rfc_imp     TYPE spta_t_in_rfc_imp
 
   DATA: lo_data           TYPE REF TO data,
         lo_data_processed TYPE REF TO data,
+        lo_params         TYPE REF TO data,
         lt_packet_encoded TYPE zcl_caut_parallel_processor=>gty_t_data,
         lo_processor      TYPE REF TO object.
   FIELD-SYMBOLS: <lt_data>      TYPE ANY TABLE,
-                 <lt_processed> TYPE ANY TABLE.
+                 <lt_processed> TYPE ANY TABLE,
+                 <lt_params>    TYPE zcl_caut_parallel_processor=>gty_t_parameters.
 
 
-  "First decode, get the clustered-data plus decoded class
+  "First decode, get the clustered-data plus decoded class and cluster type
   CALL FUNCTION 'SPTA_INDX_PACKAGE_DECODE'
     EXPORTING
       indxtab = ct_rfcdata
@@ -102,22 +126,41 @@ FORM f_in_rfc   USING    is_in_rfc_imp     TYPE spta_t_in_rfc_imp
   DATA(lv_classname) = lt_packet_encoded[ 1 ]-classname.
   CREATE OBJECT lo_processor TYPE (lv_classname).
 
+
+  "Separate parameters from data
+  DATA(lt_params_encoded) = lt_packet_encoded.
+  DELETE lt_params_encoded WHERE block <> zcl_caut_parallel_processor=>gc_block_param.
+  DELETE lt_packet_encoded WHERE block = zcl_caut_parallel_processor=>gc_block_param.
+
   "Now what we have the class we can further unpack the data as we can get the datatype
   CALL METHOD lo_processor->('UNPACK_DATA')
     EXPORTING
       it_packed = lt_packet_encoded
+      iv_output = zcl_caut_parallel_processor=>gc_input
     RECEIVING
       ro_data   = lo_data.
+
 
   ASSIGN lo_data->* TO <lt_data>.
   CHECK <lt_data> IS NOT INITIAL.
 
+  "Also unpack the parameters
+  CALL METHOD lo_processor->('UNPACK_DATA')
+    EXPORTING
+      it_packed = lt_params_encoded
+      iv_output = zcl_caut_parallel_processor=>gc_params
+    RECEIVING
+      ro_data   = lo_params.
+  ASSIGN lo_params->* TO <lt_params>.
+
+
   "Perform work unit now!
   CALL METHOD lo_processor->('WORK')
     EXPORTING
-      it_input  = <lt_data>
+      it_input      = <lt_data>
+      it_parameters = <lt_params>
     RECEIVING
-      ro_output = lo_data_processed.
+      ro_output     = lo_data_processed.
 
   "And set the results so that the after RFC process can
   "collect it
@@ -171,7 +214,7 @@ FORM f_after_rfc      USING it_rfcdata            TYPE spta_t_indxtab
   CALL METHOD lo_processor->('UNPACK_DATA')
     EXPORTING
       it_packed = lt_result_encoded
-      iv_output = abap_true
+      iv_output = zcl_caut_parallel_processor=>gc_output
     RECEIVING
       ro_data   = lo_data.
   ASSIGN lo_data->* TO <lt_packet>.
@@ -181,7 +224,7 @@ FORM f_after_rfc      USING it_rfcdata            TYPE spta_t_indxtab
   CALL METHOD lo_processor->('UNPACK_DATA')
     EXPORTING
       it_packed = cs_data-output
-      iv_output = abap_true
+      iv_output = zcl_caut_parallel_processor=>gc_output
     RECEIVING
       ro_data   = lo_data.
   ASSIGN lo_data->* TO <lt_total>.
