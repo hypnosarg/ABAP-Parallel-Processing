@@ -7,20 +7,48 @@
 *&---------------------------------------------------------------------*
 REPORT zimaur_test_paral.
 
+TABLES: makt.
 
+SELECT-OPTIONS: s_matnr FOR makt-matnr.
 
-INITIALIZATION.
+PARAMETERS: p_upper AS CHECKBOX.
+SELECT-OPTIONS: s_spras FOR makt-spras.
+
+START-OF-SELECTION.
   FIELD-SYMBOLS: <lt_input> TYPE STANDARD TABLE.
+
+  "Class zcl_tmp_paral_test is the actual parallel implementation
   DATA(lo_paral) = NEW zcl_tmp_paral_test( ).
+  "If you check the code it inherits from the framework superclass (abstract) and re-definees three methods:
+  "WORK : HEre you process the work packages, you can call any number of sub routines as neecessary, executed in N new LUWS
+  "GET_INPUT_TYPE: Returns a ref to data with the structure we want as input, can be all defined locally in the method
+  "GET_OUTPUT_TYPE: Returns a ref to data with the structure we want as output, again, can be defined locally in the method
+  "IF output type is not defined, the framework asumes output = input (like when you have a big output table and need to fill fields via post-processing)
+
+
+  "We get from the parallel class its expected input
   DATA(lo_input) = lo_paral->get_input_type( ).
   ASSIGN lo_input->* TO <lt_input>.
 
-
+  "We obtain the list of objects to process
   SELECT matnr
     FROM mara
     INTO TABLE @<lt_input>
-    UP TO 5000 ROWS.
+    UP TO 5000 ROWS
+    WHERE matnr in @s_matnr.
 
+
+  "Parameters are always passed as SO types
+  DATA: lt_parameters TYPE zcl_caut_parallel_processor=>gty_t_parameters.
+
+  APPEND zcl_caut_parallel_processor=>get_param_from_so(  iv_name = 'SPRAS'
+                                                          it_so   = s_spras[]    ) TO lt_parameters.
+
+  APPEND zcl_caut_parallel_processor=>get_param_from_pa(  iv_name  = 'UPPER'
+                                                          iv_value = p_upper    ) TO lt_parameters.
+
+  "And then we do all further processing in parallel. We can use the frame work in different ways resulting
+  "in different levels of reousrce utlilization and performance
   TRY.
       "Greedy usage, use as many parallel sessions as possible
       "this means all records will be divided by the ammount of available
@@ -28,6 +56,7 @@ INITIALIZATION.
       DATA(lo_result) = lo_paral->process(
         EXPORTING
           iv_servergroup   = 'AB_PARALLEL_PROC'
+          it_parameters    = lt_parameters
         CHANGING
           ct_data        = <lt_input>
 
