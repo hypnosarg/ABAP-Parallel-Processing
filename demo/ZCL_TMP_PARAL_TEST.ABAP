@@ -21,8 +21,12 @@ ENDCLASS.
 CLASS ZCL_TMP_PARAL_TEST IMPLEMENTATION.
 
 
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_TMP_PARAL_TEST->GET_INPUT_TYPE
+* +-------------------------------------------------------------------------------------------------+
+* | [<-()] RO_DATA                        TYPE REF TO DATA
+* +--------------------------------------------------------------------------------------</SIGNATURE>
   method GET_INPUT_TYPE.
-    "Returns a data reference to a table of the type we desire as input for our data packages
      TYPES: BEGIN OF lty_s_input,
               matnr TYPE matnr_d,
             END OF lty_s_input.
@@ -33,10 +37,15 @@ CLASS ZCL_TMP_PARAL_TEST IMPLEMENTATION.
   endmethod.
 
 
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_TMP_PARAL_TEST->GET_OUTPUT_TYPE
+* +-------------------------------------------------------------------------------------------------+
+* | [<-()] RO_DATA                        TYPE REF TO DATA
+* +--------------------------------------------------------------------------------------</SIGNATURE>
   method GET_OUTPUT_TYPE.
-     "Returns a data reference to a table of the type we desire to contain processed data
      TYPES: BEGIN OF lty_s_output,
               matnr TYPE matnr_d,
+              spras TYPE makt-spras,
               maktx TYPE makt-maktx,
             END OF lty_s_output.
 
@@ -44,24 +53,48 @@ CLASS ZCL_TMP_PARAL_TEST IMPLEMENTATION.
   endmethod.
 
 
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_TMP_PARAL_TEST->WORK
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IT_INPUT                       TYPE        ANY TABLE
+* | [--->] IT_PARAMETERS                  TYPE        GTY_T_PARAMETERS
+* | [<-()] RO_OUTPUT                      TYPE REF TO DATA
+* +--------------------------------------------------------------------------------------</SIGNATURE>
   method WORK.
 
-    "Simple example retrieve description for all the articles received in a work
-    "package
-    DATA: lt_input TYPE STANDARD TABLE OF mara.
+
+    DATA: lt_input  TYPE STANDARD TABLE OF mara,
+          lt_r_spras TYPE zacpf_tt_lg_dv_generic_range,
+          lv_select TYPE string.
     lt_input = CORRESPONDING #( it_input ).
 
     CHECK lt_input IS NOT INITIAL.
+
+
+    "Selection fields depend on parameters (select MAKTX or MAKTG)
+    lv_select = |a~matnr, t~spras|.
+    READ TABLE it_parameters WITH KEY name = 'UPPER' ASSIGNING FIELD-SYMBOL(<ls_param>).
+    IF sy-subrc = 0 AND abap_on IN <ls_param>-value .
+        lv_select = |{ lv_select }, t~maktg as maktx|.
+    ELSE.
+       lv_select = |{ lv_select }, t~maktx|.
+    ENDIF.
+
+    READ TABLE it_parameters WITH KEY name = 'SPRAS' ASSIGNING <ls_param>.
+    IF sy-subrc = 0.
+      lt_r_spras = <ls_param>-value.
+    ENDIF.
 
     FIELD-SYMBOLS: <lt_output> TYPE STANDARD TABLE.
     DATA(lo_output) =  me->get_output_type( ).
     ASSIGN lo_output->* TO <lt_output>.
 
-    SELECT a~matnr, t~maktx
+    SELECT (lv_select)
       FROM mara as a LEFT OUTER JOIN makt AS t on  t~matnr = a~matnr
                                                AND t~spras = 'E'
       FOR ALL ENTRIES IN @lt_input
       WHERE a~matnr = @lt_input-matnr
+        AND t~spras IN @lt_r_spras
       INTO CORRESPONDING FIELDS OF TABLE @<lt_output>.
 
     GET REFERENCE OF <lt_output> INTO ro_output.
